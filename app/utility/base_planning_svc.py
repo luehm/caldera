@@ -14,23 +14,23 @@ class BasePlanningService(BaseService):
     # Group 1 returns the trait, including any limits
     # Ex: '#{server.malicious.url}' => 'server.malicious.url'
     # Ex: '#{host.file.path[filters(technique=T1005,max=3)]}' => 'host.file.path[filters(technique=T1005,max=3)]'
-    re_variable = re.compile(r'#{(.*?)}', flags=re.DOTALL)
+    re_variable = re.compile(r'#\{([^\}]*?)\}', flags=re.DOTALL)
 
     # Matches facts/variables that contain limits, denoted by brackets in the fact name.
     # Ex: Matches '#{host.file.path[filters(technique=T1005,max=3)]}'
     # Ex: Does not match: '#{server.malicious.url}'
-    re_limited = re.compile(r'#{.*\[*\]}')
+    re_limited = re.compile(r'#\{[^}]*\[[^}]*\}')
 
     # Matches the trait of a limited fact
     # Group 0 returns the trait excluding any limits
     # Ex: Does not match non-limited fact '#{server.malicious.url}'
     # Ex: #{host.file.path[filters(technique=T1005,max=3)]} => 'host.file.path'
-    re_trait = re.compile(r'(?<=\{).+?(?=\[)')
+    re_trait = re.compile(r'(?<=\{)([^[\]{}]+)(?=\[)')
 
     # Matches trait limits.
     # Group 0 returns the specific filters.
     # Ex: '#{host.file.path[filters(technique=T1005,max=3)]}' => 'technique=T1005,max=3'
-    re_index = re.compile(r'(?<=\[filters\().+?(?=\)\])')
+    re_index = re.compile(r'(?<=\[filters\()([^)]+)(?=\)\])')
 
     def __init__(self, global_variable_owners=None):
         """Base class for Planning Service
@@ -280,8 +280,11 @@ class BasePlanningService(BaseService):
     async def _trim_by_limit(self, decoded_test, facts):
         limited_facts = []
         for limit in re.findall(self.re_limited, decoded_test):
+            logging.info(f"This is what we matched on: {limit}")
             limited = pickle.loads(pickle.dumps(facts))     # nosec
             trait = re.search(self.re_trait, limit).group(0).split('#{')[-1]
+            logging.info(f"This is the trait we're trying to replace: {trait}")
+            logging.info(f"This is the pattern we're going to crash on: {self.re_index}")
 
             limit_definitions = re.search(self.re_index, limit).group(0)
             if limit_definitions:
